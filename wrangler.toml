@@ -1,0 +1,15 @@
+name = "photoblog"
+compatibility_date = "2024-12-01"
+
+
+[vars]
+# Filled in for local dev only; production is set in Pages settings
+ADMIN_TOKEN = "dev-token"
+CF_ACCOUNT_ID = "xxxxxxxxxxxxxxxxxxxx"
+CF_IMAGES_TOKEN = "xxxxxxxxxxxxxxxxxxxx"
+CF_IMAGES_ACCOUNT_HASH = "xxxxxxxxxxxxxxxxxxxx"
+
+
+[[kv_namespaces]]
+binding = "PHOTO_FEED"
+id = "xxxxxxxxxxxxxxxxxxxx"
