@@ -1,0 +1,10 @@
+:root { --fg:#111; --bg:#fff; --muted:#777; --border:#e5e7eb; }
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif}
+.wrap{max-width:720px;margin:48px auto;padding:0 16px}
+h1{font-size:28px;margin:0 0 16px}
+.block{display:block;margin:12px 0}
+input[type="file"], textarea, input[type="password"]{width:100%;padding:10px;border:1px solid var(--border);border-radius:8px}
+button{padding:10px 14px;border:1px solid var(--border);border-radius:10px;cursor:pointer;background:#f8fafc}
+.mt{margin-top:20px}
+figure{margin:12px 0}
+figcaption{color:var(--muted);font-size:14px}
