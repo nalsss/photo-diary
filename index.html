@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>My Photoblog</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    body { max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+    .post { margin-bottom: 2rem; }
+    .post img { max-width: 100%; border-radius: 8px; }
+    .caption { color: #555; font-size: 14px; margin-top: 4px; }
+    .date { font-size: 12px; color: #999; }
+  </style>
+</head>
+<body>
+  <h1>My Photoblog</h1>
+  <div id="feed"></div>
+
+  <script>
+    async function loadFeed() {
+      const res = await fetch('/api/feed');
+      const data = await res.json();
+      const feedEl = document.getElementById('feed');
+      feedEl.innerHTML = '';
+      data.items.forEach(post => {
+        const div = document.createElement('div');
+        div.className = 'post';
+        div.innerHTML = `
+          <img src="${post.image.webUrl}" alt="">
+          ${post.caption ? `<div class="caption">${post.caption}</div>` : ''}
+          <div class="date">${new Date(post.createdAt).toLocaleString()}</div>
+        `;
+        feedEl.appendChild(div);
+      });
+    }
+    loadFeed();
+  </script>
+</body>
+</html>
