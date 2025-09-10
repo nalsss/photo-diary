@@ -1,5 +1,5 @@
 // Cloudflare Pages Function: GET /api/feed?limit=20&cursor=0
-// Public endpoint
+// Public endpoint — filters out deleted posts
 
 
 export const onRequestGet = async ({ env, request }) => {
@@ -13,11 +13,13 @@ const raw = await env.PHOTO_FEED.get(FEED_KEY);
 const feed = raw ? JSON.parse(raw) : [];
 
 
-const slice = feed.slice(cursor, cursor + limit);
-const nextCursor = cursor + slice.length < feed.length ? cursor + slice.length : null;
+// hide soft-deleted posts
+const visible = feed.filter(p => !p.deleted);
+const slice = visible.slice(cursor, cursor + limit);
+const nextCursor = cursor + slice.length < visible.length ? cursor + slice.length : null;
 
 
-return new Response(JSON.stringify({ items: slice, nextCursor, total: feed.length }), {
+return new Response(JSON.stringify({ items: slice, nextCursor, total: visible.length }), {
 headers: { 'content-type': 'application/json', 'cache-control': 'no-store' }
 });
 };
