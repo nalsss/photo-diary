@@ -8,6 +8,18 @@ export const onRequest = async ({ request, env, params }) => {
 const { id } = params; // file-based param from [id].js
 const method = request.method.toUpperCase();
 
+  // --- TEMP: GET for debugging route & KV ---
+  if (method === 'GET') {
+    const raw = await env.PHOTO_FEED.get('feed:v1');
+    const feed = raw ? JSON.parse(raw) : [];
+    const post = feed.find(p => p.id === id) || null;
+    return new Response(JSON.stringify({ ok: true, exists: !!post, post }), {
+      headers: { 'content-type': 'application/json' }
+    });
+  }
+  // ------------------------------------------
+  
+  // (keep the rest of your PATCH/DELETE code below)
 
 // Auth
 const auth = request.headers.get('Authorization') || '';
