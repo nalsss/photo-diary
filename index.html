@@ -1,39 +1,71 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>My Photoblog</title>
-  <link rel="stylesheet" href="/public/styles.css">
-  <style>
-    body { max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
-    .post { margin-bottom: 2rem; }
-    .post img { max-width: 100%; border-radius: 8px; }
-    .caption { color: #555; font-size: 14px; margin-top: 4px; }
-    .date { font-size: 12px; color: #999; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>My Photoblog</title>
+<link rel="stylesheet" href="/public/styles.css">
+<style>
+body { max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+.post { margin-bottom: 2rem; }
+.post img { max-width: 100%; border-radius: 8px; display:block; }
+.caption { color: #555; font-size: 14px; margin-top: 6px; }
+.date { font-size: 12px; color: #999; margin-top: 2px; }
+.empty { color:#777; margin-top:2rem; }
+</style>
 </head>
 <body>
-  <h1>My Photoblog</h1>
-  <div id="feed"></div>
+<h1>My Photoblog</h1>
+<div id="feed" class="feed"></div>
+<p id="empty" class="empty" style="display:none">No posts yet.</p>
 
-  <script>
-    async function loadFeed() {
-      const res = await fetch('/api/feed');
-      const data = await res.json();
-      const feedEl = document.getElementById('feed');
-      feedEl.innerHTML = '';
-      data.items.forEach(post => {
-        const div = document.createElement('div');
-        div.className = 'post';
-        div.innerHTML = `
-          <img src="${post.image.webUrl}" alt="">
-          ${post.caption ? `<div class="caption">${post.caption}</div>` : ''}
-          <div class="date">${new Date(post.createdAt).toLocaleString()}</div>
-        `;
-        feedEl.appendChild(div);
-      });
-    }
-    loadFeed();
-  </script>
+
+<script>
+function pickImageUrl(img) {
+if (!img) return '';
+if (img.webUrl) return img.webUrl;
+if (Array.isArray(img.variants) && img.variants.length) return img.variants[0];
+if (img.url) return img.url; // fallback if earlier posts used a different key
+return '';
+}
+
+
+async function loadFeed() {
+try {
+const res = await fetch('/api/feed');
+const data = await res.json();
+const feedEl = document.getElementById('feed');
+const emptyEl = document.getElementById('empty');
+feedEl.innerHTML = '';
+
+
+if (!data.items || !data.items.length) {
+emptyEl.style.display = 'block';
+return;
+}
+
+
+emptyEl.style.display = 'none';
+
+
+data.items.forEach(post => {
+const url = pickImageUrl(post.image);
+const wrap = document.createElement('div');
+wrap.className = 'post';
+wrap.innerHTML = `
+${url ? `<img src="${url}" alt="">` : ''}
+${post.caption ? `<div class="caption">${post.caption}</div>` : ''}
+<div class="date">${new Date(post.createdAt).toLocaleString()}</div>
+`;
+feedEl.appendChild(wrap);
+});
+} catch (e) {
+console.error('Failed to load feed', e);
+}
+}
+
+
+loadFeed();
+</script>
 </body>
 </html>
