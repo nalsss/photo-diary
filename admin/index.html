@@ -55,110 +55,118 @@
   </main>
 
   <script>
-    const form = document.getElementById('upload-form');
-    const result = document.getElementById('result');
-    const tbody = document.querySelector('#posts tbody');
+  const form = document.getElementById('upload-form');
+  const result = document.getElementById('result');
+  const tbody = document.querySelector('#posts tbody');
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      result.textContent = 'Uploading…';
+  function needToken() {
+    const t = document.getElementById('token').value.trim();
+    if (!t) { alert('Enter your ADMIN_TOKEN first.'); return null; }
+    return t;
+  }
 
-      const file = document.getElementById('photo').files[0];
-      const caption = document.getElementById('caption').value || '';
-      const token = document.getElementById('token').value.trim();
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    result.textContent = 'Uploading…';
+    const file = document.getElementById('photo').files[0];
+    const caption = document.getElementById('caption').value || '';
+    const token = needToken(); if (!token) return;
 
-      const fd = new FormData();
-      fd.append('photo', file);
-      fd.append('caption', caption);
+    const fd = new FormData();
+    fd.append('photo', file);
+    fd.append('caption', caption);
 
-      try {
-        const res = await fetch('/api/upload', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
-          body: fd
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Upload failed');
-        result.textContent = '✅ Posted!';
-        form.reset();
-        await loadPosts();
-      } catch (err) {
-        result.textContent = '❌ ' + err.message;
-      }
-    });
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: fd
+      });
+      const text = await res.text();
+      let data; try { data = JSON.parse(text); } catch { throw new Error(`Non-JSON response: ${text.slice(0,200)}`); }
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      result.textContent = '✅ Posted!';
+      form.reset();
+      await loadPosts();
+    } catch (err) { result.textContent = '❌ ' + err.message; }
+  });
 
-    function pickImageUrl(img){
-      return (img && (img.webUrl || (Array.isArray(img.variants)&&img.variants[0]) || img.url)) || '';
-    }
+  function pickImageUrl(img) {
+    return (img && (img.webUrl || (Array.isArray(img.variants) && img.variants[0]) || img.url)) || '';
+  }
 
-    async function loadPosts(){
-      const res = await fetch('/api/feed?limit=100');
-      const data = await res.json();
-      tbody.innerHTML = '';
-      data.items.forEach(p => addRow(p));
-    }
+  async function loadPosts(){
+    const res = await fetch('/api/feed?limit=100');
+    const data = await res.json();
+    tbody.innerHTML = '';
+    data.items.forEach(p => addRow(p));
+  }
 
-    function addRow(p){
-      const tr = document.createElement('tr');
-      const imgUrl = pickImageUrl(p.image);
-      tr.innerHTML = `
-        <td>${imgUrl?`<img src="${imgUrl}" class="imgthumb"/>`:''}</td>
-        <td>
-          <input type="text" value="${(p.caption||'').replace(/"/g,'&quot;')}" style="width:100%" data-id="${p.id}" />
-        </td>
-        <td class="muted">${new Date(p.createdAt).toLocaleString()}</td>
-        <td class="actions">
-          <button data-action="save" data-id="${p.id}">Save</button>
-          <button data-action="soft-del" data-id="${p.id}">Soft delete</button>
-          <button data-action="hard-del" data-id="${p.id}">Hard delete</button>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    }
+  function addRow(p){
+    const tr = document.createElement('tr');
+    const imgUrl = pickImageUrl(p.image);
+    tr.innerHTML = `
+      <td>${imgUrl?`<img src="${imgUrl}" class="imgthumb"/>`:''}</td>
+      <td><input type="text" value="${(p.caption||'').replace(/"/g,'&quot;')}" style="width:100%" data-id="${p.id}" /></td>
+      <td class="muted">${new Date(p.createdAt).toLocaleString()}</td>
+      <td class="actions">
+        <button data-action="save" data-id="${p.id}">Save</button>
+        <button data-action="soft-del" data-id="${p.id}">Soft delete</button>
+        <button data-action="hard-del" data-id="${p.id}">Hard delete</button>
+      </td>`;
+    tbody.appendChild(tr);
+  }
 
-    tbody.addEventListener('click', async (e)=>{
-      const btn = e.target.closest('button');
-      if(!btn) return;
-      const id = btn.getAttribute('data-id');
-      const token = document.getElementById('token').value.trim();
+  async function callJSON(url, opts) {
+    const res = await fetch(url, opts);
+    const text = await res.text();
+    let data; try { data = JSON.parse(text); } catch { throw new Error(`Non-JSON response: ${text.slice(0,200)}`); }
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+  }
 
+  tbody.addEventListener('click', async (e)=>{
+    const btn = e.target.closest('button'); if(!btn) return;
+    const id = btn.getAttribute('data-id');
+    const token = needToken(); if (!token) return;
+
+    try {
       if(btn.dataset.action === 'save'){
         const input = tbody.querySelector(`input[data-id="${id}"]`);
         const caption = input.value;
-        const res = await fetch(`/api/post/${encodeURIComponent(id)}`, {
+        await callJSON(`/api/post/${encodeURIComponent(id)}`, {
           method: 'PATCH',
           headers: { 'Authorization': `Bearer ${token}`, 'content-type':'application/json' },
           body: JSON.stringify({ caption })
         });
-        const data = await res.json();
-        if(!res.ok) alert('Save failed: '+(data.error||res.status));
+        alert('Saved ✓');
       }
 
       if(btn.dataset.action === 'soft-del'){
         if(!confirm('Hide this post from the public feed?')) return;
-        const res = await fetch(`/api/post/${encodeURIComponent(id)}`, {
+        await callJSON(`/api/post/${encodeURIComponent(id)}`, {
           method: 'PATCH',
           headers: { 'Authorization': `Bearer ${token}`, 'content-type':'application/json' },
           body: JSON.stringify({ deleted: true })
         });
-        const data = await res.json();
-        if(!res.ok) alert('Delete failed: '+(data.error||res.status));
-        else loadPosts();
+        await loadPosts();
       }
 
       if(btn.dataset.action === 'hard-del'){
         if(!confirm('This will permanently remove the post and delete the image. Continue?')) return;
-        const res = await fetch(`/api/post/${encodeURIComponent(id)}?hard=1`, {
+        await callJSON(`/api/post/${encodeURIComponent(id)}?hard=1`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        const data = await res.json();
-        if(!res.ok) alert('Hard delete failed: '+(data.error||res.status));
-        else loadPosts();
+        await loadPosts();
       }
-    });
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  });
 
-    loadPosts();
-  </script>
+  loadPosts();
+</script>
+
 </body>
 </html>
