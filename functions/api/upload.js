@@ -78,14 +78,22 @@ image: { id: imageId, webUrl, thumbUrl }
 };
 
 
-// 6) Persist: append to head of feed array in KV
-const FEED_KEY = 'feed:v1';
-const raw = await env.PHOTO_FEED.get(FEED_KEY);
-const feed = raw ? JSON.parse(raw) : [];
-feed.unshift(post);
-if (feed.length > 1000) feed.length = 1000; // cap
-await env.PHOTO_FEED.put(FEED_KEY, JSON.stringify(feed));
+  // 6) Persist: append to head of feed array in KV (with error handling)
+  const FEED_KEY = 'feed:v1';
+  try {
+    const raw = await env.PHOTO_FEED.get(FEED_KEY);
+    const feed = raw ? JSON.parse(raw) : [];
+    feed.unshift(post);
+    if (feed.length > 1000) feed.length = 1000;
+    await env.PHOTO_FEED.put(FEED_KEY, JSON.stringify(feed));
+  } catch (e) {
+    // Return JSON so the admin page can show a clear message
+    return json({ 
+      ok: false, 
+      error: 'KV write failed. Check that PHOTO_FEED binding exists in this environment.',
+      details: String(e)
+    }, 500);
+  }
 
-
-return json({ ok: true, post });
+  return json({ ok: true, post });
 };
