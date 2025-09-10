@@ -1,85 +1,164 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Photo Uploader</title>
-<link rel="stylesheet" href="/public/styles.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Photo Uploader</title>
+  <link rel="stylesheet" href="/public/styles.css" />
+  <style>
+    table { width:100%; border-collapse: collapse; margin-top:24px }
+    th, td { text-align:left; padding:8px; border-bottom:1px solid #e5e7eb }
+    .actions { display:flex; gap:8px }
+    .muted { color:#777 }
+    .imgthumb { max-width:120px; border-radius:6px }
+    .wrap { max-width: 960px }
+  </style>
 </head>
 <body>
-<main class="wrap">
-<h1>Upload a Photo</h1>
+  <main class="wrap">
+    <h1>Upload a Photo</h1>
 
+    <form id="upload-form">
+      <label class="block">
+        <span>Photo (JPG/PNG/HEIC, ≤ 15 MB)</span>
+        <input type="file" name="photo" id="photo" accept="image/*" required />
+      </label>
 
-<form id="upload-form">
-<label class="block">
-<span>Photo (JPG/PNG/HEIC, ≤ 15 MB)</span>
-<input type="file" name="photo" id="photo" accept="image/*" required />
-</label>
+      <label class="block">
+        <span>Caption (optional)</span>
+        <textarea name="caption" id="caption" rows="3" placeholder="Say something about this photo…"></textarea>
+      </label>
 
+      <label class="block">
+        <span>Admin Token</span>
+        <input type="password" id="token" placeholder="Paste your ADMIN_TOKEN" required />
+      </label>
 
-<label class="block">
-<span>Caption (optional)</span>
-<textarea name="caption" id="caption" rows="3" placeholder="Say something about this photo…"></textarea>
-</label>
+      <button type="submit">Upload</button>
+    </form>
 
+    <section id="result" class="mt"></section>
 
-<label class="block">
-<span>Admin Token</span>
-<input type="password" id="token" placeholder="Paste your ADMIN_TOKEN" required />
-</label>
+    <h2 style="margin-top:32px">Manage posts</h2>
+    <div class="muted">Newest first. Soft-deleted items are hidden on the public feed.</div>
+    <table id="posts">
+      <thead>
+        <tr>
+          <th>Preview</th>
+          <th>Caption</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </main>
 
+  <script>
+    const form = document.getElementById('upload-form');
+    const result = document.getElementById('result');
+    const tbody = document.querySelector('#posts tbody');
 
-<button type="submit">Upload</button>
-</form>
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      result.textContent = 'Uploading…';
 
+      const file = document.getElementById('photo').files[0];
+      const caption = document.getElementById('caption').value || '';
+      const token = document.getElementById('token').value.trim();
 
-<section id="result" class="mt"></section>
-</main>
+      const fd = new FormData();
+      fd.append('photo', file);
+      fd.append('caption', caption);
 
+      try {
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: fd
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Upload failed');
+        result.textContent = '✅ Posted!';
+        form.reset();
+        await loadPosts();
+      } catch (err) {
+        result.textContent = '❌ ' + err.message;
+      }
+    });
 
-<script>
-const form = document.getElementById('upload-form');
-const result = document.getElementById('result');
+    function pickImageUrl(img){
+      return (img && (img.webUrl || (Array.isArray(img.variants)&&img.variants[0]) || img.url)) || '';
+    }
 
+    async function loadPosts(){
+      const res = await fetch('/api/feed?limit=100');
+      const data = await res.json();
+      tbody.innerHTML = '';
+      data.items.forEach(p => addRow(p));
+    }
 
-form.addEventListener('submit', async (e) => {
-e.preventDefault();
-result.textContent = 'Uploading…';
+    function addRow(p){
+      const tr = document.createElement('tr');
+      const imgUrl = pickImageUrl(p.image);
+      tr.innerHTML = `
+        <td>${imgUrl?`<img src="${imgUrl}" class="imgthumb"/>`:''}</td>
+        <td>
+          <input type="text" value="${(p.caption||'').replace(/"/g,'&quot;')}" style="width:100%" data-id="${p.id}" />
+        </td>
+        <td class="muted">${new Date(p.createdAt).toLocaleString()}</td>
+        <td class="actions">
+          <button data-action="save" data-id="${p.id}">Save</button>
+          <button data-action="soft-del" data-id="${p.id}">Soft delete</button>
+          <button data-action="hard-del" data-id="${p.id}">Hard delete</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    }
 
+    tbody.addEventListener('click', async (e)=>{
+      const btn = e.target.closest('button');
+      if(!btn) return;
+      const id = btn.getAttribute('data-id');
+      const token = document.getElementById('token').value.trim();
 
-const file = document.getElementById('photo').files[0];
-const caption = document.getElementById('caption').value || '';
-const token = document.getElementById('token').value.trim();
+      if(btn.dataset.action === 'save'){
+        const input = tbody.querySelector(`input[data-id="${id}"]`);
+        const caption = input.value;
+        const res = await fetch(`/api/post/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${token}`, 'content-type':'application/json' },
+          body: JSON.stringify({ caption })
+        });
+        const data = await res.json();
+        if(!res.ok) alert('Save failed: '+(data.error||res.status));
+      }
 
+      if(btn.dataset.action === 'soft-del'){
+        if(!confirm('Hide this post from the public feed?')) return;
+        const res = await fetch(`/api/post/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${token}`, 'content-type':'application/json' },
+          body: JSON.stringify({ deleted: true })
+        });
+        const data = await res.json();
+        if(!res.ok) alert('Delete failed: '+(data.error||res.status));
+        else loadPosts();
+      }
 
-const fd = new FormData();
-fd.append('photo', file);
-fd.append('caption', caption);
+      if(btn.dataset.action === 'hard-del'){
+        if(!confirm('This will permanently remove the post and delete the image. Continue?')) return;
+        const res = await fetch(`/api/post/${encodeURIComponent(id)}?hard=1`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if(!res.ok) alert('Hard delete failed: '+(data.error||res.status));
+        else loadPosts();
+      }
+    });
 
-
-try {
-const res = await fetch('/api/upload', {
-method: 'POST',
-headers: { 'Authorization': `Bearer ${token}` },
-body: fd
-});
-const data = await res.json();
-if (!res.ok) throw new Error(data.error || 'Upload failed');
-
-
-result.innerHTML = `
-<p>✅ Posted!</p>
-<figure>
-<img src="${data.post.image.webUrl}" alt="preview" style="max-width:100%;height:auto" />
-${data.post.caption ? `<figcaption>${data.post.caption}</figcaption>` : ''}
-</figure>
-`;
-form.reset();
-} catch (err) {
-result.textContent = '❌ ' + err.message;
-}
-});
-</script>
+    loadPosts();
+  </script>
 </body>
 </html>
